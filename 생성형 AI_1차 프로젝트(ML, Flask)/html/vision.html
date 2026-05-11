@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Vision 분석{% endblock %}
+
+{% block content %}
+<div class="page-shell vision-shell">
+
+    <section class="vision-head">
+        <h2>Vision 분석</h2>
+        <p>YOLO 기반으로 보행자, 차량, 신호등 상태를 분석한 결과입니다.</p>
+    </section>
+
+    <section class="vision-layout">
+
+        <!-- 왼쪽: 결과 영상 -->
+        <div class="vision-video-card">
+            <div style="display:flex; justify-content: space-between; align-items:center;">
+                <h3>실행 결과 영상</h3>
+
+                <button onclick="runVisionAnalysis()" style="
+                    padding:10px 16px;
+                    border:none;
+                    border-radius:10px;
+                    background:#2563eb;
+                    color:white;
+                    font-weight:700;
+                    cursor:pointer;
+                ">
+                    Vision 실행
+                </button>
+            </div>
+
+            <video id="visionVideo" class="vision-video" controls
+                   src="{{ url_for('static', filename='videos/fixed_vision.mp4') }}">
+            </video>
+        </div>
+
+        <!-- 오른쪽: 결과 요약 -->
+        <div class="vision-result-card">
+            <h3>실행 결과 요약</h3>
+
+            <div class="vision-result-item">
+                <span>신호 상태</span>
+                <strong id="visionSignal">-</strong>
+            </div>
+
+            <div class="vision-result-item">
+                <span>보행자 탐지</span>
+                <strong id="visionPersons">-</strong>
+            </div>
+
+            <div class="vision-result-item">
+                <span>차량 탐지</span>
+                <strong id="visionVehicles">-</strong>
+            </div>
+
+            <div class="vision-result-item">
+                <span>어린이-공 위험도</span>
+                <strong id="visionRisk">-</strong>
+            </div>
+
+            <div class="vision-result-item">
+                <span>공 소지 보행자</span>
+                <strong id="visionBall">-</strong>
+            </div>
+            </div>
+
+            <p class="vision-note">
+                ※ 현재 결과 요약은 영상 분석 결과를 기준으로 표시하는 영역입니다.
+                다음 단계에서 REST API와 연결하여 자동 갱신되도록 확장합니다.
+            </p>
+        </div>
+
+    </section>
+
+</div>
+    <script>
+    fetch("/api/vision/result")
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById("visionSignal").innerText = data.signal;
+            document.getElementById("visionPersons").innerText = data.persons + "명";
+            document.getElementById("visionVehicles").innerText = data.vehicles + "대";
+            document.getElementById("visionRisk").innerText = data.risk;
+            document.getElementById("visionBall").innerText = data.person_with_ball;
+        });
+    </script>
+    <script>
+    fetch("/api/vision/result")
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById("visionSignal").innerText = data.signal;
+            document.getElementById("visionPersons").innerText = data.persons + "명";
+            document.getElementById("visionVehicles").innerText = data.vehicles + "대";
+            document.getElementById("visionRisk").innerText = data.risk;
+            document.getElementById("visionBall").innerText = data.person_with_ball;
+        });
+
+    function runVisionAnalysis() {
+    fetch("/api/vision/run", {
+        method: "POST"
+    })
+    .then(res => res.json())
+    .then(data => {
+
+        // 1. 오른쪽 카드 업데이트
+        document.getElementById("visionSignal").innerText = data.signal;
+        document.getElementById("visionPersons").innerText = data.persons + "명";
+        document.getElementById("visionVehicles").innerText = data.vehicles + "대";
+        document.getElementById("visionRisk").innerText = data.risk;
+        document.getElementById("visionBall").innerText = data.person_with_ball;
+
+        // 2. 영상 새로고침 (🔥 핵심)
+        const video = document.getElementById("visionVideo");
+        video.src = data.video_url + "?t=" + new Date().getTime();
+        video.load();
+
+        alert("Vision 분석 완료");
+    });
+}
+    </script>
+{% endblock %}

@@ -1,0 +1,860 @@
+{% extends "base.html" %}
+
+{% block title %}지역 분석{% endblock %}
+
+{% block content %}
+<style>
+    .region-chart-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        margin-top: 18px;
+    }
+
+    .region-chart-section {
+        padding: 18px 20px 16px;
+    }
+
+    .region-chart-section:last-child {
+        grid-column: 1 / -1;
+    }
+
+    .region-chart-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+
+    .region-chart-title {
+        margin: 0;
+    }
+
+    .region-chart-hint {
+        margin: 0 0 8px;
+        font-size: 12px;
+        color: #64748b;
+    }
+
+    .region-chart-canvas-wrap {
+        position: relative;
+        width: 100%;
+        height: 250px;
+    }
+
+    .region-chart-section:last-child .region-chart-canvas-wrap {
+        height: 280px;
+    }
+
+    .chart-clickable {
+        cursor: pointer;
+    }
+
+    .chart-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.55);
+        z-index: 9999;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+    }
+
+    .chart-modal-box {
+        width: min(1200px, 94vw);
+        height: min(760px, 88vh);
+        background: #ffffff;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.25);
+    }
+
+    .chart-modal-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 22px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .chart-modal-top h3 {
+        margin: 0;
+    }
+
+    .chart-modal-close {
+        border: none;
+        background: transparent;
+        font-size: 30px;
+        line-height: 1;
+        cursor: pointer;
+        color: #334155;
+    }
+
+    .chart-modal-body {
+        height: calc(100% - 72px);
+        padding: 16px 18px 18px;
+    }
+
+    #chartModalCanvas {
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    @media (max-width: 980px) {
+        .region-chart-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .region-chart-section:last-child {
+            grid-column: auto;
+        }
+    }
+    .sim-result-change-highlight {
+        color: #dc2626;
+        font-weight: 800;
+        background: #fee2e2;
+        padding: 4px 10px;
+        border-radius: 10px;
+        display: inline-block;
+    }
+      .region-bottom-cause-btn-wrap {
+        display: flex;
+        justify-content: center;
+        margin: 20px 0 8px;
+    }
+
+    .region-bottom-cause-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 180px;
+        height: 48px;
+        padding: 0 22px;
+        border-radius: 14px;
+        background: #17305c;
+        color: #ffffff;
+        text-decoration: none;
+        font-weight: 700;
+        box-shadow: 0 8px 20px rgba(23, 48, 92, 0.18);
+    }
+
+    .region-bottom-cause-btn:hover {
+        background: #0f2344;
+    }
+
+</style>
+
+<div class="page-shell">
+
+    <!-- =========================
+         공통 기준 선택
+    ========================= -->
+    <section class="panel-card region-base-filter-card">
+        <div class="region-base-filter-head">
+            <div>
+                <h2 class="region-base-filter-title">기준 선택</h2>
+                <p class="region-base-filter-desc">
+                    자치구, 연도, 월을 선택하면 기준데이터와 시뮬레이션 입력 영역이 함께 해당 기준을 따릅니다.
+                </p>
+            </div>
+        </div>
+
+        <div class="region-base-filter-row">
+            <div class="region-base-filter-item">
+                <label for="baseDistrict">자치구</label>
+                <select id="baseDistrict">
+                    {% for d in [
+                        "강남구","강동구","강북구","강서구","관악구","광진구","구로구","금천구",
+                        "노원구","도봉구","동대문구","동작구","마포구","서대문구","서초구",
+                        "성동구","성북구","송파구","양천구","영등포구","용산구","은평구",
+                        "종로구","중구","중랑구"
+                    ] %}
+                    <option value="{{ d }}" {% if name == d %}selected{% endif %}>{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="region-base-filter-item">
+                <label for="baseYear">연도</label>
+                <select id="baseYear">
+                    {% for y in range(2014, 2025) %}
+                    <option value="{{ y }}" {% if year == y|string %}selected{% endif %}>{{ y }}년</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="region-base-filter-item">
+                <label for="baseMonth">월</label>
+                <select id="baseMonth">
+                    {% for m in range(1, 13) %}
+                    <option value="{{ m }}" {% if month == m|string %}selected{% endif %}>{{ m }}월</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="region-base-filter-btn-wrap">
+                <button type="button" class="region-base-load-btn" onclick="loadBaseRegion()">
+                    기준 불러오기
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- =========================
+         1. 시뮬레이션
+    ========================= -->
+    <section class="panel-card region-sim-section" id="simulate">
+        <h2 class="region-sim-title">데이터</h2>
+        <p class="region-sim-desc">
+            기준 자치구 데이터를 확인한 뒤, 원하는 값으로 조정하여 결과를 아래에서 비교할 수 있습니다.
+        </p>
+
+        <div class="region-sim-top-grid">
+
+            <!-- 기준 데이터 -->
+            <div class="big-card sim-base-card">
+                <div class="simulate-form-title">기준 데이터</div>
+
+                <div class="sim-base-head">
+                    <div class="sim-base-head-row">
+                        <span>자치구</span>
+                        <strong id="base-info-district">{{ district_name }}</strong>
+                    </div>
+                    <div class="sim-base-head-row">
+                        <span>기준 시점</span>
+                        <strong id="base-info-date">{{ year }}년 {{ month }}월</strong>
+                    </div>
+                    <div class="sim-base-head-row">
+                        <span>유형</span>
+                        <strong id="base-info-type">{{ db_cluster_type }}</strong>
+                    </div>
+                </div>
+
+                <div class="sim-base-list">
+                    <div class="sim-base-item">
+                        <span>PM2.5</span>
+                        <strong>{{ db_pm_avg }} ㎍/㎥</strong>
+                    </div>
+                    <div class="sim-base-item">
+                        <span>고령비율</span>
+                        <strong>{{ db_old_ratio }} %</strong>
+                    </div>
+                    <div class="sim-base-item">
+                        <span>진료건수</span>
+                        <strong>{{ db_asthma_total }} 건</strong>
+                    </div>
+                    <div class="sim-base-item">
+                        <span>어린이 비율</span>
+                        <strong>{{ db_child_ratio }} %</strong>
+                    </div>
+                    <div class="sim-base-item">
+                        <span>의료 인프라</span>
+                        <strong>{{ db_medical_cnt }} 개</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 시뮬레이션 입력 -->
+            <div class="big-card simulate-input">
+                <div class="simulate-form-title">데이터 입력</div>
+
+                <div class="sim-linked-base-info">
+                    <div class="sim-linked-base-item">
+                        <span>기준 자치구</span>
+                        <strong id="sim-linked-district">{{ district_name }}</strong>
+                    </div>
+                    <div class="sim-linked-base-item">
+                        <span>기준 시점</span>
+                        <strong id="sim-linked-date">{{ year }}년 {{ month }}월</strong>
+                    </div>
+                </div>
+
+                <input type="hidden" id="simYear" value="{{ year }}">
+                <input type="hidden" id="simMonth" value="{{ month }}">
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>PM2.5</span>
+                        <strong id="pm25Value">
+                            {% if sim_data %}{{ sim_data.pm25 }} ㎍/㎥{% else %}30 ㎍/㎥{% endif %}
+                        </strong>
+                    </div>
+                    <input type="range" id="pm25" min="0" max="100"
+                           value="{% if sim_data %}{{ sim_data.pm25 }}{% else %}30{% endif %}">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>고령비율</span>
+                        <strong id="oldValue">
+                            {% if sim_data %}{{ sim_data.old_ratio }} %{% else %}18 %{% endif %}
+                        </strong>
+                    </div>
+                    <input type="range" id="oldRatio" min="0" max="40"
+                           value="{% if sim_data %}{{ sim_data.old_ratio }}{% else %}18{% endif %}">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>진료건수</span>
+                        <strong id="asthmaValue">
+                            {% if sim_data %}{{ sim_data.asthma_total }} 건{% else %}300 건{% endif %}
+                        </strong>
+                    </div>
+                    <input type="range" id="asthma" min="0" max="5000"
+                           value="{% if sim_data %}{{ sim_data.asthma_total }}{% else %}300{% endif %}">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>어린이 비율</span>
+                        <strong id="childValue">
+                            {% if sim_data %}{{ sim_data.child_ratio }} %{% else %}12 %{% endif %}
+                        </strong>
+                    </div>
+                    <input type="range" id="childRatio" min="0" max="30"
+                           value="{% if sim_data %}{{ sim_data.child_ratio }}{% else %}12{% endif %}">
+                </div>
+
+                <div class="slider-group">
+                    <div class="slider-label">
+                        <span>의료 인프라</span>
+                        <strong id="medicalValue">
+                            {% if sim_data %}{{ sim_data.medical_cnt }} 개{% else %}200 개{% endif %}
+                        </strong>
+                    </div>
+                    <input type="range" id="medical" min="0" max="500"
+                           value="{% if sim_data %}{{ sim_data.medical_cnt }}{% else %}200{% endif %}">
+                </div>
+
+                <div class="region-sim-btn-row">
+                    <button type="button" class="simulate-btn" onclick="runSimulation()">
+                        결과 확인
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- =========================
+         2. 시뮬레이션 결과 비교
+    ========================= -->
+    <section class="panel-card sim-compare-card" id="simResultSection">
+        <div class="sim-compare-head">
+            <div>
+                <h3 class="sim-compare-title">시뮬레이션 결과</h3>
+                <p class="sim-compare-desc">
+                    현재 지역의 기준 데이터와 사용자가 조정한 시뮬레이션 결과를 비교합니다.
+                </p>
+            </div>
+
+            <a href="/cause?name={{ name }}&year={{ year }}&month={{ month }}"
+               class="cause-move-btn">
+                원인분석 보기
+            </a>
+        </div>
+
+        <div class="sim-compare-grid">
+            <div class="sim-box real">
+                <div class="sim-box-label">기준 데이터</div>
+                <h4>{{ district_name }} / {{ year }}년 {{ month }}월</h4>
+
+                <div class="sim-metric-list">
+                    <div class="sim-metric-row">
+                        <span>PM2.5</span>
+                        <strong>{{ db_pm_avg }} ㎍/㎥</strong>
+                    </div>
+                    <div class="sim-metric-row">
+                        <span>고령비율</span>
+                        <strong>{{ db_old_ratio }} %</strong>
+                    </div>
+                    <div class="sim-metric-row">
+                        <span>진료건수</span>
+                        <strong>{{ db_asthma_total }} 건</strong>
+                    </div>
+                    <div class="sim-metric-row">
+                        <span>어린이 비율</span>
+                        <strong>{{ db_child_ratio }} %</strong>
+                    </div>
+                    <div class="sim-metric-row">
+                        <span>의료 인프라</span>
+                        <strong>{{ db_medical_cnt }} 개</strong>
+                    </div>
+                    <div class="sim-metric-row sim-type-row">
+                        <span>유형</span>
+                        <strong>{{ db_cluster_type }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sim-box sim">
+                <div class="sim-box-label">시뮬레이션 데이터</div>
+                <h4 id="compare-district-label">
+                    {% if sim_data %}
+                        {{ sim_data.district }} / {{ sim_data.year }}년 {{ sim_data.month }}월
+                    {% else %}
+                        아직 실행 전
+                    {% endif %}
+                </h4>
+
+                <div class="sim-metric-list">
+                    <div class="sim-metric-row">
+                        <span>PM2.5</span>
+                        <strong id="compare-pm25">
+                            {% if sim_data %}{{ sim_data.pm25 }} ㎍/㎥{% else %}-{% endif %}
+                        </strong>
+                    </div>
+                    <div class="sim-metric-row">
+                        <span>고령비율</span>
+                        <strong id="compare-old">
+                            {% if sim_data %}{{ sim_data.old_ratio }} %{% else %}-{% endif %}
+                        </strong>
+                    </div>
+                    <div class="sim-metric-row">
+                        <span>진료건수</span>
+                        <strong id="compare-asthma">
+                            {% if sim_data %}{{ sim_data.asthma_total }} 건{% else %}-{% endif %}
+                        </strong>
+                    </div>
+                    <div class="sim-metric-row">
+                        <span>어린이 비율</span>
+                        <strong id="compare-child">
+                            {% if sim_data %}{{ sim_data.child_ratio }} %{% else %}-{% endif %}
+                        </strong>
+                    </div>
+                    <div class="sim-metric-row">
+                        <span>의료 인프라</span>
+                        <strong id="compare-medical">
+                            {% if sim_data %}{{ sim_data.medical_cnt }} 개{% else %}-{% endif %}
+                        </strong>
+                    </div>
+                    <div class="sim-metric-row sim-type-row">
+                        <span>유형</span>
+                        <strong id="compare-type">
+                            {% if sim_data %}{{ sim_data.cluster_type }}{% else %}-{% endif %}
+                        </strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sim-delta-grid">
+            <div class="sim-delta-item">
+                <span>PM2.5 변화</span>
+                <strong id="delta-pm25">
+                    {% if sim_data %}{{ (sim_data.pm25|float - db_pm_avg|float)|round(1) }} ㎍/㎥{% else %}-{% endif %}
+                </strong>
+            </div>
+            <div class="sim-delta-item">
+                <span>고령비율 변화</span>
+                <strong id="delta-old">
+                    {% if sim_data %}{{ (sim_data.old_ratio|float - db_old_ratio|float)|round(1) }} %{% else %}-{% endif %}
+                </strong>
+            </div>
+            <div class="sim-delta-item">
+                <span>진료건수 변화</span>
+                <strong id="delta-asthma">
+                    {% if sim_data %}{{ (sim_data.asthma_total|float - db_asthma_total|float)|round(0)|int }} 건{% else %}-{% endif %}
+                </strong>
+            </div>
+            <div class="sim-delta-item">
+                <span>유형 변화</span>
+                <strong id="sim-result-change">
+                    {% if sim_data %}
+                        {% if db_cluster_type != sim_data.cluster_type %}
+                            {{ db_cluster_type }} → {{ sim_data.cluster_type }}
+                        {% else %}
+                            {{ db_cluster_type }} 유지
+                        {% endif %}
+                    {% else %}
+                        아직 실행 전
+                    {% endif %}
+                </strong>
+            </div>
+        </div>
+    </section>
+
+    <!-- =========================
+         3. 비교 차트
+    ========================= -->
+    <div class="region-chart-grid">
+        <section class="panel-card region-chart-section">
+            <div class="region-chart-head">
+                <h2 class="region-chart-title">주요 지표 비교 (비율/환경)</h2>
+            </div>
+            <p class="region-chart-hint">차트를 클릭하면 확대됩니다.</p>
+            <div class="region-chart-canvas-wrap">
+                <canvas id="compareChartSmall" class="chart-clickable"></canvas>
+            </div>
+        </section>
+
+        <section class="panel-card region-chart-section">
+            <div class="region-chart-head">
+                <h2 class="region-chart-title">주요 지표 비교 (규모/건수)</h2>
+            </div>
+            <p class="region-chart-hint">차트를 클릭하면 확대됩니다.</p>
+            <div class="region-chart-canvas-wrap">
+                <canvas id="compareChartBig" class="chart-clickable"></canvas>
+            </div>
+        </section>
+
+        <section class="panel-card region-chart-section">
+            <div class="region-chart-head">
+                <h2 class="region-chart-title">기준 대비 변화량</h2>
+            </div>
+            <p class="region-chart-hint">파랑은 증가, 빨강은 감소입니다. 차트를 클릭하면 확대됩니다.</p>
+            <div class="region-chart-canvas-wrap">
+                <canvas id="diffChart" class="chart-clickable"></canvas>
+            </div>
+        </section>
+    </div>
+
+    <div id="chartModal" class="chart-modal">
+        <div class="chart-modal-box">
+            <div class="chart-modal-top">
+                <h3 id="chartModalTitle">그래프 크게 보기</h3>
+                <button type="button" class="chart-modal-close" onclick="closeChartModal()">✕</button>
+            </div>
+            <div class="chart-modal-body">
+                <canvas id="chartModalCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="region-bottom-cause-btn-wrap">
+    <a href="/cause?name={{ name }}&year={{ year }}&month={{ month }}" class="region-bottom-cause-btn">
+        원인분석 보기
+    </a>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+const DB_PM25 = {{ db_pm_avg|float }};
+const DB_OLD = {{ db_old_ratio|float }};
+const DB_ASTHMA = {{ db_asthma_total|float }};
+const DB_CHILD = {{ db_child_ratio|float }};
+const DB_MEDICAL = {{ db_medical_cnt|float }};
+const DB_TYPE = "{{ db_cluster_type }}";
+
+let compareChartSmallInstance = null;
+let compareChartBigInstance = null;
+let diffChartInstance = null;
+let chartModalInstance = null;
+
+function updateSliderValue(id, targetId, suffix = "") {
+    const input = document.getElementById(id);
+    const target = document.getElementById(targetId);
+
+    if (input && target) {
+        target.textContent = input.value + suffix;
+        input.addEventListener("input", function () {
+            target.textContent = this.value + suffix;
+        });
+    }
+}
+
+function syncBaseSelectionText() {
+    const district = document.getElementById("baseDistrict").value;
+    const year = document.getElementById("baseYear").value;
+    const month = document.getElementById("baseMonth").value;
+
+    document.getElementById("sim-linked-district").textContent = district;
+    document.getElementById("sim-linked-date").textContent = `${year}년 ${month}월`;
+
+    document.getElementById("simYear").value = year;
+    document.getElementById("simMonth").value = month;
+}
+
+function loadBaseRegion() {
+    const district = document.getElementById("baseDistrict").value;
+    const year = document.getElementById("baseYear").value;
+    const month = document.getElementById("baseMonth").value;
+    window.location.href = `/region?name=${encodeURIComponent(district)}&year=${year}&month=${month}`;
+}
+
+function updateSimulationResultCards(payload) {
+    const district = payload.district || document.getElementById("baseDistrict").value;
+    const year = payload.year || document.getElementById("baseYear").value;
+    const month = payload.month || document.getElementById("baseMonth").value;
+
+    const simType = payload.cluster_type || payload.type || "-";
+
+    document.getElementById("compare-district-label").textContent = `${district} / ${year}년 ${month}월`;
+    document.getElementById("compare-pm25").textContent = `${Number(payload.pm25).toFixed(1)} ㎍/㎥`;
+    document.getElementById("compare-old").textContent = `${Number(payload.old_ratio).toFixed(1)} %`;
+    document.getElementById("compare-asthma").textContent = `${Math.round(Number(payload.asthma_total))} 건`;
+    document.getElementById("compare-child").textContent = `${Number(payload.child_ratio).toFixed(1)} %`;
+    document.getElementById("compare-medical").textContent = `${Math.round(Number(payload.medical_cnt))} 개`;
+    document.getElementById("compare-type").textContent = simType;
+
+    document.getElementById("delta-pm25").textContent = `${(Number(payload.pm25) - DB_PM25).toFixed(1)} ㎍/㎥`;
+    document.getElementById("delta-old").textContent = `${(Number(payload.old_ratio) - DB_OLD).toFixed(1)} %`;
+    document.getElementById("delta-asthma").textContent = `${Math.round(Number(payload.asthma_total) - DB_ASTHMA)} 건`;
+
+    const changeEl = document.getElementById("sim-result-change");
+    if (simType !== DB_TYPE) {
+    changeEl.innerHTML = `${DB_TYPE} → <span class="sim-result-change-highlight">${simType}</span>`;
+    } else {
+        changeEl.textContent = `${DB_TYPE} 유지`;
+    }
+}
+
+function renderCharts(simData) {
+    const smallBaseValues = [DB_PM25, DB_OLD, DB_CHILD];
+    const smallSimValues = [simData.pm25, simData.old, simData.child];
+
+    const bigBaseValues = [DB_ASTHMA, DB_MEDICAL];
+    const bigSimValues = [simData.asthma, simData.medical];
+
+    const diffValues = [
+        Number((simData.pm25 - DB_PM25).toFixed(1)),
+        Number((simData.old - DB_OLD).toFixed(1)),
+        Number((simData.asthma - DB_ASTHMA).toFixed(0)),
+        Number((simData.child - DB_CHILD).toFixed(1)),
+        Number((simData.medical - DB_MEDICAL).toFixed(0))
+    ];
+
+    const positiveData = diffValues.map(v => v > 0 ? v : 0);
+    const negativeData = diffValues.map(v => v < 0 ? v : 0);
+
+    if (compareChartSmallInstance) compareChartSmallInstance.destroy();
+    if (compareChartBigInstance) compareChartBigInstance.destroy();
+    if (diffChartInstance) diffChartInstance.destroy();
+
+    compareChartSmallInstance = new Chart(document.getElementById("compareChartSmall"), {
+        type: "bar",
+        data: {
+            labels: ["PM2.5", "고령비율", "어린이비율"],
+            datasets: [
+                {
+                    label: "기존 데이터",
+                    data: smallBaseValues,
+                    backgroundColor: "#93c5fd"
+                },
+                {
+                    label: "시뮬레이션",
+                    data: smallSimValues,
+                    backgroundColor: "#f9a8d4"
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: "top" }
+            }
+        }
+    });
+
+    compareChartBigInstance = new Chart(document.getElementById("compareChartBig"), {
+        type: "bar",
+        data: {
+            labels: ["진료건수", "의료인프라"],
+            datasets: [
+                {
+                    label: "기존 데이터",
+                    data: bigBaseValues,
+                    backgroundColor: "#93c5fd"
+                },
+                {
+                    label: "시뮬레이션",
+                    data: bigSimValues,
+                    backgroundColor: "#f9a8d4"
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: "top" }
+            }
+        }
+    });
+
+    diffChartInstance = new Chart(document.getElementById("diffChart"), {
+        type: "bar",
+        data: {
+            labels: ["PM2.5", "고령비율", "진료건수", "어린이비율", "의료인프라"],
+            datasets: [
+                {
+                    label: "증가",
+                    data: positiveData,
+                    backgroundColor: "#3b82f6"
+                },
+                {
+                    label: "감소",
+                    data: negativeData,
+                    backgroundColor: "#ef4444"
+                }
+            ]
+        },
+        options: {
+            indexAxis: "y",
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: "top" }
+            }
+        }
+    });
+}
+
+function runSimulation() {
+    const district = document.getElementById("baseDistrict").value;
+    const year = document.getElementById("baseYear").value;
+    const month = document.getElementById("baseMonth").value;
+
+    const pm25 = Number(document.getElementById("pm25").value);
+    const oldRatio = Number(document.getElementById("oldRatio").value);
+    const asthma = Number(document.getElementById("asthma").value);
+    const childRatio = Number(document.getElementById("childRatio").value);
+    const medical = Number(document.getElementById("medical").value);
+
+    fetch("/simulate", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            district: district,
+            year: year,
+            month: month,
+            pm25: pm25,
+            old_ratio: oldRatio,
+            asthma: asthma,
+            child_ratio: childRatio,
+            medical: medical
+        })
+    })
+    .then(res => {
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+    })
+    .then(data => {
+        const payload = {
+            district: district,
+            year: year,
+            month: month,
+            pm25: pm25,
+            old_ratio: oldRatio,
+            asthma_total: asthma,
+            child_ratio: childRatio,
+            medical_cnt: medical,
+            cluster_type: data.cluster_type || data.type || "-"
+        };
+
+        updateSimulationResultCards(payload);
+
+        renderCharts({
+            pm25: pm25,
+            old: oldRatio,
+            asthma: asthma,
+            child: childRatio,
+            medical: medical
+        });
+
+        const resultSection = document.getElementById("simResultSection");
+        if (resultSection) {
+            resultSection.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+        }
+    })
+    .catch(err => {
+        console.error("simulate error:", err);
+        alert("시뮬레이션 결과를 불러오지 못했습니다.");
+    });
+}
+
+function openChartModal(canvasId, title) {
+    const modal = document.getElementById("chartModal");
+    const modalTitle = document.getElementById("chartModalTitle");
+    const modalCanvas = document.getElementById("chartModalCanvas");
+
+    modalTitle.textContent = title;
+    modal.style.display = "flex";
+
+    if (chartModalInstance) {
+        chartModalInstance.destroy();
+        chartModalInstance = null;
+    }
+
+    let source = null;
+    if (canvasId === "compareChartSmall") source = compareChartSmallInstance;
+    else if (canvasId === "compareChartBig") source = compareChartBigInstance;
+    else source = diffChartInstance;
+
+    if (!source) return;
+
+    chartModalInstance = new Chart(modalCanvas, {
+        type: source.config.type,
+        data: source.config.data,
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: "top" }
+            },
+            ...(source.config.options || {})
+        }
+    });
+}
+
+function closeChartModal() {
+    document.getElementById("chartModal").style.display = "none";
+    if (chartModalInstance) {
+        chartModalInstance.destroy();
+        chartModalInstance = null;
+    }
+}
+
+window.addEventListener("click", function (e) {
+    const modal = document.getElementById("chartModal");
+    if (e.target === modal) {
+        closeChartModal();
+    }
+});
+
+document.addEventListener("DOMContentLoaded", function () {
+    updateSliderValue("pm25", "pm25Value", " ㎍/㎥");
+    updateSliderValue("oldRatio", "oldValue", " %");
+    updateSliderValue("asthma", "asthmaValue", " 건");
+    updateSliderValue("childRatio", "childValue", " %");
+    updateSliderValue("medical", "medicalValue", " 개");
+
+    document.getElementById("baseDistrict").addEventListener("change", syncBaseSelectionText);
+    document.getElementById("baseYear").addEventListener("change", syncBaseSelectionText);
+    document.getElementById("baseMonth").addEventListener("change", syncBaseSelectionText);
+
+    syncBaseSelectionText();
+
+    renderCharts({
+        pm25: {% if sim_data %}{{ sim_data.pm25|float }}{% else %}{{ db_pm_avg|float }}{% endif %},
+        old: {% if sim_data %}{{ sim_data.old_ratio|float }}{% else %}{{ db_old_ratio|float }}{% endif %},
+        asthma: {% if sim_data %}{{ sim_data.asthma_total|float }}{% else %}{{ db_asthma_total|float }}{% endif %},
+        child: {% if sim_data %}{{ sim_data.child_ratio|float }}{% else %}{{ db_child_ratio|float }}{% endif %},
+        medical: {% if sim_data %}{{ sim_data.medical_cnt|float }}{% else %}{{ db_medical_cnt|float }}{% endif %}
+    });
+
+    document.getElementById("compareChartSmall").onclick = function () {
+        openChartModal("compareChartSmall", "주요 지표 비교 (비율/환경)");
+    };
+
+    document.getElementById("compareChartBig").onclick = function () {
+        openChartModal("compareChartBig", "주요 지표 비교 (규모/건수)");
+    };
+
+    document.getElementById("diffChart").onclick = function () {
+        openChartModal("diffChart", "기준 대비 변화량");
+    };
+});
+</script>
+{% endblock %}

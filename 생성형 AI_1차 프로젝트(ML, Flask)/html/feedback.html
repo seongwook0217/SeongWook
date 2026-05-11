@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}문의 및 제안{% endblock %}
+
+{% block content %}
+<div class="page-shell feedback-shell">
+    <section class="page-hero feedback-hero">
+        <div>
+            <p class="page-eyebrow">문의 및 제안</p>
+            <h2 class="page-title">서비스에 대한 의견을 남겨주세요</h2>
+            <p class="page-desc">
+                문의사항이나 개선 아이디어를 작성할 수 있습니다.
+                {% if not is_logged_in %}
+                <br><strong>※ 문의 및 제안 등록은 로그인 후 이용 가능합니다.</strong>
+                {% endif %}
+            </p>
+        </div>
+    </section>
+
+    <section class="feedback-form-card">
+        {% if not is_logged_in %}
+        <div class="login-guide-box">
+            <p class="login-guide-title">로그인 후 문의 및 제안 등록 가능</p>
+            <p class="login-guide-text">
+                현재는 비로그인 상태입니다.
+                내용 확인은 가능하지만, 등록은 로그인 후 이용할 수 있습니다.
+            </p>
+            <a href="{{ url_for('login') }}" class="login-move-btn">로그인하러 가기</a>
+        </div>
+        {% else %}
+        <div class="login-guide-box active">
+            <p class="login-guide-title">{{ login_user_name }}님, 문의 및 제안 등록이 가능합니다.</p>
+            <p class="login-guide-text">
+                로그인된 회원 정보로 문의가 등록됩니다.
+            </p>
+        </div>
+        {% endif %}
+
+        {% if message %}
+        <div class="form-message">
+            {{ message }}
+        </div>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('feedback') }}" class="feedback-form">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="user_name">이름</label>
+                    <input
+                        type="text"
+                        id="user_name"
+                        name="user_name"
+                        value="{{ login_user_name }}"
+                        readonly
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="user_email">이메일</label>
+                    <input
+                        type="email"
+                        id="user_email"
+                        name="user_email"
+                        value="{{ login_user_email }}"
+                        {% if not is_logged_in %}disabled{% endif %}
+                        placeholder="example@email.com"
+                    >
+                </div>
+
+                <div class="form-group form-group-full">
+                    <label for="feedback_type">목적</label>
+                    <select
+                        id="feedback_type"
+                        name="feedback_type"
+                        {% if not is_logged_in %}disabled{% endif %}
+                    >
+                        <option value="">선택하세요</option>
+                        <option value="문의">문의</option>
+                        <option value="제안">제안</option>
+                    </select>
+                </div>
+
+                <div class="form-group form-group-full">
+                    <label for="title">제목</label>
+                    <input
+                        type="text"
+                        id="title"
+                        name="title"
+                        {% if not is_logged_in %}disabled{% endif %}
+                        placeholder="제목을 입력하세요"
+                    >
+                </div>
+
+                <div class="form-group form-group-full">
+                    <label for="content">내용</label>
+                    <textarea
+                        id="content"
+                        name="content"
+                        rows="8"
+                        {% if not is_logged_in %}disabled{% endif %}
+                        placeholder="문의 또는 제안 내용을 입력하세요"
+                    ></textarea>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                {% if is_logged_in %}
+                    <button type="submit" class="submit-btn">제출하기</button>
+                {% else %}
+                    <button type="button" class="submit-btn disabled-btn" disabled>로그인 후 제출 가능</button>
+                    <a href="{{ url_for('login') }}" class="login-inline-btn">로그인</a>
+                {% endif %}
+            </div>
+        </form>
+    </section>
+</div>
+{% endblock %}

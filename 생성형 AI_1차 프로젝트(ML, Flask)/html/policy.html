@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}정책 지원{% endblock %}
+
+{% block content %}
+<div class="page-shell policy-shell">
+
+    <form method="get" action="/policy">
+        <section class="filter-bar policy-filter-bar">
+            <select name="year">
+                {% for y in range(2014, 2025) %}
+                <option value="{{ y }}" {% if year == y|string %}selected{% endif %}>{{ y }}년</option>
+                {% endfor %}
+            </select>
+
+            <select name="month">
+                {% for m in range(1, 13) %}
+                <option value="{{ m }}" {% if month == m|string %}selected{% endif %}>{{ m }}월</option>
+                {% endfor %}
+            </select>
+
+            <select name="name">
+                {% for d in [
+                    "강남구","강동구","강북구","강서구","관악구","광진구","구로구","금천구",
+                    "노원구","도봉구","동대문구","동작구","마포구","서대문구","서초구",
+                    "성동구","성북구","송파구","양천구","영등포구","용산구","은평구",
+                    "종로구","중구","중랑구"
+                ] %}
+                <option value="{{ d }}" {% if name == d %}selected{% endif %}>{{ d }}</option>
+                {% endfor %}
+            </select>
+
+            <button type="submit" class="search-btn">조회</button>
+        </section>
+    </form>
+
+    <section class="policy-grid">
+        <div class="panel-card policy-target-card">
+            <div class="policy-target-head">
+                <div class="policy-target-head-left">
+                    <h3>정책 대상</h3>
+                    <h2 class="policy-district-title">{{ district_name }}</h2>
+                    <p class="policy-target-subtitle">
+                        자치구 유형과 주요 지표를 바탕으로 우선 정책 방향을 제안합니다.
+                    </p>
+                </div>
+
+                <div class="policy-target-head-right">
+                    <span class="policy-badge
+                        {% if cluster_type == '안정형' %}type-safe
+                        {% elif cluster_type == '고령 취약형' %}type-elder
+                        {% elif cluster_type == '미세먼지 민감형' %}type-dust
+                        {% elif cluster_type == '의료 이용 집중형' %}type-medical
+                        {% elif cluster_type == '어린이 취약형' %}type-child
+                        {% endif %}">
+                        {{ cluster_type }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="policy-target-body">
+                <div class="policy-target-left">
+                    <p class="policy-priority-text">
+                        {{ priority_text }}
+                    </p>
+                </div>
+
+                <div class="policy-target-icon">
+                    <img src="{{ url_for('static', filename=policy_icon) }}" alt="정책 유형 아이콘">
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-card policy-priority-card">
+            <h3>핵심 지표</h3>
+
+            <div class="policy-metrics">
+                <div class="metric-box">
+                    <h4>미세먼지</h4>
+                    <div class="metric-value">{{ pm_avg }}</div>
+                </div>
+
+                <div class="metric-box">
+                    <h4>진료 건수</h4>
+                    <div class="metric-value">{{ asthma_total }}</div>
+                </div>
+
+                <div class="metric-box">
+                    <h4>고령 비율</h4>
+                    <div class="metric-value">{{ old_ratio }}%</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-card policy-direction-card">
+            <h3>정책 방향</h3>
+            <h4 class="policy-title-highlight">{{ policy_title }}</h4>
+
+            <div class="policy-top3-grid">
+                {% for item in policy_list %}
+                <div class="policy-top3-card">
+                    <div class="policy-top3-number">TOP {{ loop.index }}</div>
+                    <div class="policy-top3-text">{{ item }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="panel-card policy-summary-card">
+            <h3>연계 분석</h3>
+
+            <p class="policy-summary-text">
+                현재 선택한 자치구의 원인 분석 결과를 함께 보면
+                정책 방향을 더 구체적으로 이해할 수 있습니다.
+            </p>
+
+            <div class="policy-summary-box">
+                <p>
+                    원인분석 페이지에서는 해당 지역이 어떤 지표의 영향을 크게 받는지 확인할 수 있고,
+                    정책지원 페이지에서는 그 결과를 바탕으로 우선 대응 방향을 제안합니다.
+                </p>
+            </div>
+
+            <a href="/cause?name={{ name }}&year={{ year }}&month={{ month }}" class="policy-link-btn">
+                원인분석 다시 보기
+            </a>
+        </div>
+
+    </section>
+</div>
+{% endblock %}
